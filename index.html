@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ProfitShare Hub</title>
+  <meta name="description" content="ProfitShare Hub — we split 50% of site revenue with users" />
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    /* minimal styling inline - replace with external CSS if you like */
+    body{font-family:Inter,system-ui,Arial;background:#f6fbfb;color:#042226;margin:0}
+    header{background:#00d1b2;color:#042226;padding:36px;text-align:center}
+    main{max-width:1000px;margin:24px auto;padding:0 18px}
+    .btn{background:#008f73;color:white;padding:10px 14px;border-radius:8px;border:0;cursor:pointer}
+    .flex{display:flex;gap:12px;align-items:center}
+    .card{background:white;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+    input[type=email], input[type=password]{padding:10px;border-radius:8px;border:1px solid #dfe7e6}
+    .hide{display:none}
+    .cookie-banner{position:fixed;left:16px;right:16px;bottom:16px;background:white;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12);display:flex;justify-content:space-between;gap:12px;align-items:center}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ProfitShare Hub</h1>
+    <p>Free to use. We split 50% of tracked revenue with active users.</p>
+    <div style="margin-top:12px">
+      <input id="email" type="email" placeholder="you@example.com" />
+      <button class="btn" id="signupBtn">Sign up & view dashboard</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="dashboard" class="hide">
+      <h2>Your Dashboard</h2>
+      <div id="earnings" class="card"></div>
+      <h3 style="margin-top:16px">Available Ads & Offers</h3>
+      <div id="ads" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"></div>
+    </section>
+
+    <section id="login" class="card" style="margin-top:20px">
+      <h3>Admin / Login (demo)</h3>
+      <input id="adminEmail" placeholder="admin@example.com" type="email" />
+      <input id="adminPwd" placeholder="password" type="password" />
+      <button id="loginBtn" class="btn">Login</button>
+    </section>
+  </main>
+
+  <!-- Cookie banner for GDPR (basic) -->
+  <div id="cookieBanner" class="cookie-banner hide">
+    <div>
+      We use cookies to personalize content and measure traffic. Manage preferences or accept.
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="cookieManage" class="btn" style="background:#fff;color:#008f73;border:1px solid #e0eaea">Manage</button>
+      <button id="cookieAccept" class="btn">Accept</button>
+    </div>
+  </div>
+
+  <script>
+    // Frontend wiring: talk to serverless endpoints
+    const signupBtn = document.getElementById('signupBtn');
+    const emailInput = document.getElementById('email');
+    const dashboard = document.getElementById('dashboard');
+    const earningsDiv = document.getElementById('earnings');
+    const adsDiv = document.getElementById('ads');
+
+    signupBtn.addEventListener('click', async ()=>{
+      const email = emailInput.value.trim();
+      if(!/^\S+@\S+\.\S+$/.test(email)){ alert('Enter a valid email'); return; }
+
+      // create user or capture email
+      const r = await fetch('/.netlify/functions/api-signup', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ email })
+      });
+      if(!r.ok){ alert('Signup failed'); return; }
+      const data = await r.json();
+      // show dashboard
+      dashboard.classList.remove('hide');
+      renderEarnings(data.earnings);
+      renderAds(data.ads);
+    });
+
+    function renderEarnings(earnings){
+      // expected format { ad: {you:.., site:..}, affiliate: {...}, ...}
+      let html = '<h3>Earnings summary (simulated)</h3>';
+      let totalYou=0, totalSite=0;
+      for(const key of Object.keys(earnings)){
+        const e = earnings[key];
+        totalYou += e.you;
+        totalSite += e.site;
+        html += `<div style="margin:8px 0"><strong>${escapeHtml(key)}</strong><div style="height:10px;background:#eef;padding:2px;border-radius:6px;margin-top:6px"><div style="width:${Math.round( (e.you/(e.site||1))*100 )}%;height:10px;background:#00d1b2;border-radius:6px"></div></div>
+                 <div style="font-size:13px;color:#666;margin-top:6px">You: $${e.you.toFixed(2)} — Site total: $${e.site.toFixed(2)}</div></div>`;
+      }
+      html += `<div style="margin-top:12px"><strong>Total to you: $${totalYou.toFixed(2)}</strong></div>`;
+      earningsDiv.innerHTML = html;
+    }
+
+    function renderAds(ads){
+      adsDiv.innerHTML = '';
+      (ads || []).forEach(a=>{
+        const el = document.createElement('div');
+        el.className='card';
+        el.innerHTML = `<h4>${escapeHtml(a.title)}</h4><p style="color:#666">${escapeHtml(a.desc)}</p><a target="_blank" rel="noopener noreferrer" href="${a.url}">Visit →</a>`;
+        adsDiv.appendChild(el);
+      });
+    }
+
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+    // Minimal cookie banner logic
+    const cookieBanner = document.getElementById('cookieBanner');
+    const cookieAccept = document.getElementById('cookieAccept');
+    const cookieManage = document.getElementById('cookieManage');
+    if(!localStorage.getItem('ps_cookie_accepted')) cookieBanner.classList.remove('hide');
+    cookieAccept.onclick = ()=>{ localStorage.setItem('ps_cookie_accepted','1'); cookieBanner.classList.add('hide'); };
+    cookieManage.onclick = ()=>{ alert('Cookie preferences: (demo) You can toggle analytics/ads cookies here.'); };
+
+    // Admin login (demo)
+    document.getElementById('loginBtn').addEventListener('click', async ()=>{
+      const r = await fetch('/.netlify/functions/api-login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email: document.getElementById('adminEmail').value, password: document.getElementById('adminPwd').value })
+      });
+      if(r.ok) alert('Logged in (demo)'); else alert('Login failed');
+    });
+
+  </script>
+</body>
+</html>
